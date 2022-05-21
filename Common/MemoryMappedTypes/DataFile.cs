@@ -24,8 +24,25 @@ public readonly ref struct MapFeatureData
     public GeometryType Type { get; init; }
     public ReadOnlySpan<char> Label { get; init; }
     public ReadOnlySpan<Coordinate> Coordinates { get; init; }
-    public Dictionary<string, string> Properties { get; init; }
+    //Pentru a putea itera mai usor utilizam un enum la care assignam int-uri la string-uri
+    public enum LandTypes
+    {
+        Highway = 0,
+        Water = 1,
+        Boundary = 2,
+        Admin_level = 3,
+        Place = 4,
+        Railway = 5,
+        Natural = 6,
+        Landuse = 7,
+        Building = 8,
+        Leisure = 9,
+        Amenity = 10,
+        Name = 11,
+    }
+    public Dictionary<LandTypes, string> Properties { get; init; }
 }
+
 
 /// <summary>
 ///     Represents a file with map data organized in the following format:<br />
@@ -142,6 +159,20 @@ public unsafe class DataFile : IDisposable
         GetString(stringsOffset, charsOffset, i + 1, out value);
     }
 
+    public static string UpperC(string input) =>
+        input switch
+        {
+            null => throw new ArgumentNullException(nameof(input)),
+            "" => throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input)),
+            _ => string.Concat(input[0].ToString().ToUpper(), input.AsSpan(1))
+        };
+
+    
+    public string[] LandTypes = new[] {
+        "highway", "water", "boundary", "admin_level", "place", "railway", "natural", "landuse", "building", "leisure",
+        "amenity", "name"
+    };
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public void ForeachFeature(BoundingBox b, MapFeatureDelegate? action)
     {
@@ -181,11 +212,29 @@ public unsafe class DataFile : IDisposable
 
                 if (isFeatureInBBox)
                 {
-                    var properties = new Dictionary<string, string>(feature->PropertyCount);
+                    var properties = new Dictionary<MapFeatureData.LandTypes, string>(feature->PropertyCount);
                     for (var p = 0; p < feature->PropertyCount; ++p)
                     {
-                        GetProperty(header.Tile.Value.StringsOffsetInBytes, header.Tile.Value.CharactersOffsetInBytes, p * 2 + feature->PropertiesOffset, out var key, out var value);
-                        properties.Add(key.ToString(), value.ToString());
+                        GetProperty(header.Tile.Value.StringsOffsetInBytes, header.Tile.Value.CharactersOffsetInBytes,
+                            p * 2 + feature->PropertiesOffset, out var key, out var value);
+                        // Store in memory only the properties used for computation to immensely speed up the process (the number of properties is immense
+                        // and enum parsing is computationally expensive, so it performs worse)
+                        if (LandTypes.Contains(key.ToString()))
+                        {
+                            try
+                            {
+                                // Convert the string obtained from the file to an equivalent enum type for easier computation
+                                MapFeatureData.LandTypes keyEnum =
+                                    (MapFeatureData.LandTypes)Enum.Parse(
+                                        typeof(MapFeatureData.LandTypes),
+                                        UpperC(key.ToString()));
+                                properties.Add(keyEnum, value.ToString());
+                            }
+                            catch (Exception e)
+                            {
+                                continue;
+                            }
+                        }
                     }
 
                     if (!action(new MapFeatureData
