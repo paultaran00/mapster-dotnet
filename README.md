@@ -1,3 +1,6 @@
+![Results]([http://url/to/img.png](https://imgur.com/a/ffec3KV))
+
+
 Mapster
 -----------------------
 The solution in this repository contains several projects that aim to read and extract information from the OpenStreeMap binary [`osm.pbf`](https://wiki.openstreetmap.org/wiki/PBF_Format) format, as well as interpret and present this data in a user-facing way.
